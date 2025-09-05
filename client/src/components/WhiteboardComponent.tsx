@@ -25,7 +25,7 @@ const WhiteboardComponent = () => {
     context.lineCap = "round";
     setCtx(context);
 
-    const s = io("http://localhost:8080"); // backend URL
+    const s = io("https://collab-board-4ax9.onrender.com"); // backend URL
     s.emit("join-room", sessionId);
     setSocket(s);
 
