@@ -5,64 +5,80 @@ import { io } from "socket.io-client";
 
 const WhiteboardComponent = () => {
   const { sessionId } = useParams();
-  const canvasRef = useRef(null);
-  const [ctx, setCtx] = useState(null);
-  const [socket, setSocket] = useState(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
+  const [socket, setSocket] = useState<any>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
   const [color, setColor] = useState("#000000");
   const [thickness, setThickness] = useState(2);
 
   // history for undo
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
 
+  // ------------------ SOCKET + CANVAS SETUP ------------------
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight - 80; // leave space for toolbar
     const context = canvas.getContext("2d");
+    if (!context) return;
     context.lineCap = "round";
     setCtx(context);
 
+    // Connect to backend
     const s = io("https://collab-board-4ax9.onrender.com", {
       transports: ["websocket"],
       withCredentials: false,
     });
 
-  });
-
     s.emit("join-room", sessionId);
     setSocket(s);
 
-    s.on("onpropogate", (data) => {
-      if (data.type === "draw") {
-        context.strokeStyle = data.color;
-        context.lineWidth = data.thickness;
-        context.lineTo(data.x, data.y);
-        context.stroke();
-      }
-      if (data.type === "down") {
-        context.beginPath();
-        context.moveTo(data.x, data.y);
-      }
-      if (data.type === "clear") {
-        context.clearRect(0, 0, canvas.width, canvas.height);
+    // Listen for updates from other users
+    s.on("onpropogate", (data: any) => {
+      if (!context) return;
+
+      switch (data.type) {
+        case "draw":
+          context.strokeStyle = data.color;
+          context.lineWidth = data.thickness;
+          context.lineTo(data.x, data.y);
+          context.stroke();
+          break;
+        case "down":
+          context.beginPath();
+          context.moveTo(data.x, data.y);
+          break;
+        case "clear":
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          break;
+        default:
+          break;
       }
     });
 
-    window.addEventListener("resize", () => {
+    // Handle window resize
+    const handleResize = () => {
       const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight - 80;
       context.putImageData(imgData, 0, 0);
-    });
+    };
+    window.addEventListener("resize", handleResize);
 
-    return () => s.disconnect();
+    return () => {
+      s.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
   }, [sessionId]);
 
+  // ------------------ STATE SAVE ------------------
   const saveState = () => {
-    if (!ctx) return;
+    if (!ctx || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const data = canvas.toDataURL();
     const newHistory = history.slice(0, historyStep + 1);
@@ -71,46 +87,9 @@ const WhiteboardComponent = () => {
     setHistoryStep(newHistory.length - 1);
   };
 
-  // ===== Mouse Handlers =====
-  const handleMouseDown = (e) => {
-    setIsDrawing(true);
-    const { offsetX, offsetY } = e.nativeEvent;
-    startDrawing(offsetX, offsetY);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDrawing) return;
-    const { offsetX, offsetY } = e.nativeEvent;
-    draw(offsetX, offsetY);
-  };
-
-  const handleMouseUp = () => setIsDrawing(false);
-
-  // ===== Touch Handlers =====
-  const handleTouchStart = (e) => {
-    e.preventDefault();
-    setIsDrawing(true);
-    const rect = canvasRef.current.getBoundingClientRect();
-    const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    startDrawing(x, y);
-  };
-
-  const handleTouchMove = (e) => {
-    e.preventDefault();
-    if (!isDrawing) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    draw(x, y);
-  };
-
-  const handleTouchEnd = () => setIsDrawing(false);
-
-  // ===== Common Drawing Logic =====
-  const startDrawing = (x, y) => {
+  // ------------------ DRAWING LOGIC ------------------
+  const startDrawing = (x: number, y: number) => {
+    if (!ctx || !socket) return;
     ctx.beginPath();
     ctx.moveTo(x, y);
 
@@ -124,7 +103,8 @@ const WhiteboardComponent = () => {
     saveState();
   };
 
-  const draw = (x, y) => {
+  const draw = (x: number, y: number) => {
+    if (!ctx || !socket) return;
     ctx.lineTo(x, y);
     ctx.strokeStyle = color;
     ctx.lineWidth = thickness;
@@ -141,13 +121,14 @@ const WhiteboardComponent = () => {
   };
 
   const handleClear = () => {
+    if (!ctx || !socket || !canvasRef.current) return;
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     socket.emit("propogate", { roomId: sessionId, type: "clear" });
     saveState();
   };
 
   const handleUndo = () => {
-    if (historyStep > 0) {
+    if (historyStep > 0 && ctx && canvasRef.current) {
       const canvas = canvasRef.current;
       const img = new Image();
       img.src = history[historyStep - 1];
@@ -160,6 +141,7 @@ const WhiteboardComponent = () => {
   };
 
   const handleSave = () => {
+    if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const link = document.createElement("a");
     link.download = `collab-board-${sessionId}.png`;
@@ -167,6 +149,37 @@ const WhiteboardComponent = () => {
     link.click();
   };
 
+  // ------------------ MOUSE & TOUCH HANDLERS ------------------
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDrawing(true);
+    const { offsetX, offsetY } = e.nativeEvent;
+    startDrawing(offsetX, offsetY);
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDrawing) return;
+    const { offsetX, offsetY } = e.nativeEvent;
+    draw(offsetX, offsetY);
+  };
+  const handleMouseUp = () => setIsDrawing(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    startDrawing(touch.clientX - rect.left, touch.clientY - rect.top);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!isDrawing || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    draw(touch.clientX - rect.left, touch.clientY - rect.top);
+  };
+  const handleTouchEnd = () => setIsDrawing(false);
+
+  // ------------------ JSX ------------------
   return (
     <div>
       {/* Toolbar */}
@@ -204,7 +217,7 @@ const WhiteboardComponent = () => {
         </div>
       </div>
 
-      {/* Whiteboard */}
+      {/* Canvas */}
       <canvas
         ref={canvasRef}
         style={{ display: "block", background: "white", touchAction: "none" }}
