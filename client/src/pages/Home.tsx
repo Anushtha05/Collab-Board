@@ -15,27 +15,22 @@ const Home = () => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        height: "100vh",
-        background: "#f0f0f0",
-        flexDirection: "column",
-        fontFamily: "'Poppins', sans-serif",
+        height: "100vh", // full screen height
+        background: "#f0f0f0", // optional, you can change
       }}
     >
-      <h1 style={{ marginBottom: "20px", fontFamily: "'Pacifico', cursive" }}>
-        Collab-Board
-      </h1>
       <button
         onClick={handleNewSession}
         style={{
-          padding: "15px 30px",
-          fontSize: "1.2rem",
+          padding: "20px 40px",
+          fontSize: "1.5rem",
           cursor: "pointer",
-          borderRadius: "10px",
+          borderRadius: "12px",
           border: "none",
           background: "#222",
           color: "white",
-          boxShadow: "0px 4px 10px rgba(0,0,0,0.3)",
-          transition: "all 0.2s ease-in-out",
+          boxShadow: "0px 5px 15px rgba(0,0,0,0.3)",
+          transition: "background 0.2s ease",
         }}
         onMouseOver={(e) => (e.currentTarget.style.background = "#444")}
         onMouseOut={(e) => (e.currentTarget.style.background = "#222")}
