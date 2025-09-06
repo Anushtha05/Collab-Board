@@ -26,8 +26,10 @@ const WhiteboardComponent = () => {
     setCtx(context);
 
     const s = io("https://collab-board-4ax9.onrender.com", {
-    transports: ["websocket"],
-    withCredentials: false,
+      transports: ["websocket"],
+      withCredentials: false,
+    });
+
   });
 
     s.emit("join-room", sessionId);
