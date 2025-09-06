@@ -15,8 +15,11 @@ const Home = () => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        height: "100vh", // full screen height
-        background: "#f0f0f0", // optional, you can change
+        width: "100vw",   // full viewport width
+        height: "100vh",  // full viewport height
+        margin: 0,
+        padding: 0,
+        background: "#f0f0f0", // optional
       }}
     >
       <button
